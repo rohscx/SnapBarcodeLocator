@@ -118,18 +118,6 @@ struct BarcodeScannerSection: View {
             .background(Color.black.opacity(0.7))
             .cornerRadius(20)
             .padding()
-
-            // Feedback for Vision readiness
-            // if !visionReady {
-            //     VStack {
-            //         ProgressView()
-            //             .progressViewStyle(CircularProgressViewStyle(tint: .white))
-            //             .scaleEffect(1.5)
-            //         Text("Initializing Scanner...")
-            //             .foregroundColor(.white)
-            //             .padding(.top, 10)
-            //     }
-            // }
         }
     }
 }
