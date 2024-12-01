@@ -12,6 +12,7 @@ import AVFoundation
 struct BarcodeScannerView: UIViewControllerRepresentable {
     @Binding var serialNumbers: [String]
     var onScanned: (String) -> Void // Closure to handle all scanned barcodes
+    var onVisionReady: ((Bool) -> Void)? // Add a callback for Vision readiness
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onScanned: onScanned, serialNumbers: $serialNumbers)
@@ -21,6 +22,7 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
         let viewController = BarcodeScannerUIViewController()
         viewController.updateSerialNumbers(serialNumbers) // Initialize serial numbers
         viewController.onScanned = onScanned
+        viewController.onVisionReady = onVisionReady // Pass the readiness callback
         return viewController
     }
 
@@ -33,6 +35,7 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
     class BarcodeScannerUIViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         private var serialNumbers: [String] = []
         var onScanned: ((String) -> Void)?
+        var onVisionReady: ((Bool) -> Void)? // Vision readiness callback
         private var captureSession: AVCaptureSession?
         private var previewLayer: AVCaptureVideoPreviewLayer?
         private var highlightView: UIView = {
@@ -42,6 +45,8 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
             view.backgroundColor = UIColor.clear
             return view
         }()
+        private var isFeedbackViewAdded = false
+
 
         private var loadingLabel: UILabel! // Loading label for feedback
         private var activityIndicator: UIActivityIndicatorView! // Activity indicator for feedback
@@ -130,18 +135,40 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
         }
 
         private func initializeVision() {
+            print("Initializing Vision pipeline...")
+
+            // Check if Vision is already ready
+            if isVisionReady() {
+                print("Vision is already ready.")
+                self.hideFeedbackView()
+                self.onVisionReady?(true)
+                return
+            }
+
+            // Proceed to initialize Vision
             DispatchQueue.global(qos: .background).async {
-                print("Initializing Vision pipeline...")
-                sleep(3) // Simulated delay for Vision pipeline setup
+                print("Vision not ready. Initializing pipeline...")
+
+                // Simulate actual Vision initialization process (e.g., model loading)
+                // Replace this block with the actual Vision initialization logic
+                sleep(3) // Placeholder delay to simulate model loading
+
                 DispatchQueue.main.async {
                     self.visionReady = true
+                    print("Vision pipeline is fully initialized and ready!")
                     self.hideFeedbackView()
-                    print("Vision pipeline is ready!")
+                    self.onVisionReady?(true) // Notify readiness if a callback is provided
                 }
             }
         }
 
         private func setupFeedbackView() {
+            guard !isFeedbackViewAdded else {
+                print("Feedback view is already added, skipping setup.")
+                return
+            }
+            isFeedbackViewAdded = true
+
             // Initialize feedback views
             loadingLabel = UILabel()
             loadingLabel.text = "Initializing Scanner..."
@@ -178,7 +205,7 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
 
         func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
             guard visionReady else {
-                print("Vision not ready. Skipping frame.")
+                // print("Vision not ready. Skipping frame.")
                 return
             }
 
@@ -253,6 +280,12 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
             generator.notificationOccurred(.success)
             print("Haptics triggered.")
         }
+
+        private func isVisionReady() -> Bool {
+            print("Checking Vision readiness: \(visionReady ? "Ready" : "Not Ready")")
+            return visionReady
+        }
+
 
         override func viewWillDisappear(_ animated: Bool) {
             super.viewWillDisappear(animated)

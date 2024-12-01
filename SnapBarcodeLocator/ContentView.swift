@@ -16,7 +16,7 @@ struct ContentView: View {
     @State private var isMenuOpen: Bool = false // Track menu visibility
     @Binding var serialNumbers: [String] // Pass as a binding
     @State private var scannedBarcodes: [String] = [] // Log of all scanned barcodes
-
+    @State private var visionReady: Bool = false // Track Vision readiness
 
     var body: some View {
         NavigationView {
@@ -25,7 +25,8 @@ struct ContentView: View {
                 BarcodeScannerSection(
                     matchedCode: $matchedCode,
                     scannedBarcodes: $appStateManager.scannedBarcodes,
-                    serialNumbers: $appStateManager.serialNumbers
+                    serialNumbers: $appStateManager.serialNumbers,
+                    visionReady: $visionReady
                 )
 
                 Spacer()
@@ -85,34 +86,50 @@ struct BarcodeScannerSection: View {
     @Binding var matchedCode: String?
     @Binding var scannedBarcodes: [String]
     @Binding var serialNumbers: [String]
+    @Binding var visionReady: Bool
 
     var body: some View {
         ZStack {
-            BarcodeScannerView(serialNumbers: $serialNumbers) { scannedValue in
-                // Add all scanned barcodes to the list
-                if !scannedBarcodes.contains(scannedValue) {
-                    scannedBarcodes.append(scannedValue)
-                    print("Scanned barcode added: \(scannedValue)")
-                } else {
-                    print("Duplicate barcode ignored: \(scannedValue)")
-                }
+            BarcodeScannerView(
+                serialNumbers: $serialNumbers,
+                onScanned: { scannedValue in
+                    // Add all scanned barcodes to the list
+                    if !scannedBarcodes.contains(scannedValue) {
+                        scannedBarcodes.append(scannedValue)
+                        print("Scanned barcode added: \(scannedValue)")
+                    } else {
+                        print("Duplicate barcode ignored: \(scannedValue)")
+                    }
 
-                // Check if the scanned barcode matches a serial number
-                if serialNumbers.contains(scannedValue) {
-                    matchedCode = scannedValue
-                    print("Matched serial number: \(scannedValue)")
-                } else {
-                    print("Scanned value: \(scannedValue) did not match any serial numbers.")
+                    // Check if the scanned barcode matches a serial number
+                    if serialNumbers.contains(scannedValue) {
+                        matchedCode = scannedValue
+                        print("Matched serial number: \(scannedValue)")
+                    } else {
+                        print("Scanned value: \(scannedValue) did not match any serial numbers.")
+                    }
+                },
+                onVisionReady: { isReady in
+                    print("Vision readiness updated: \(isReady)")
+                    self.visionReady = isReady
                 }
-            }
+            )
             .frame(height: UIScreen.main.bounds.height * 0.5)
             .background(Color.black.opacity(0.7))
             .cornerRadius(20)
             .padding()
 
-            // Crosshair Overlay
-            CrosshairView()
-                .allowsHitTesting(false) // Ensures Crosshair does not interfere with focus
+            // Feedback for Vision readiness
+            // if !visionReady {
+            //     VStack {
+            //         ProgressView()
+            //             .progressViewStyle(CircularProgressViewStyle(tint: .white))
+            //             .scaleEffect(1.5)
+            //         Text("Initializing Scanner...")
+            //             .foregroundColor(.white)
+            //             .padding(.top, 10)
+            //     }
+            // }
         }
     }
 }
@@ -172,29 +189,5 @@ struct InputFormSection: View {
         }
         inputText = "" // Clear the input field
         isTextFieldFocused = false // Dismiss the keyboard
-    }
-}
-
-struct CrosshairView: View {
-    var body: some View {
-        GeometryReader { geometry in
-            let crosshairSize: CGFloat = 30
-            let strokeWidth: CGFloat = 2
-            let color: Color = .red
-
-            Path { path in
-                let centerX = geometry.size.width / 2
-                let centerY = geometry.size.height / 2
-
-                // Vertical line
-                path.move(to: CGPoint(x: centerX, y: centerY - crosshairSize))
-                path.addLine(to: CGPoint(x: centerX, y: centerY + crosshairSize))
-
-                // Horizontal line
-                path.move(to: CGPoint(x: centerX - crosshairSize, y: centerY))
-                path.addLine(to: CGPoint(x: centerX + crosshairSize, y: centerY))
-            }
-            .stroke(color, lineWidth: strokeWidth)
-        }
     }
 }
