@@ -15,11 +15,27 @@ struct MenuView: View {
     var body: some View {
         NavigationView {
             List {
-                // Section for entered serial numbers
+
+                // Section for serial numbers
                 Section(header: Text("Entered Serial Numbers")) {
-                    ForEach(serialNumbers, id: \.self) { serial in
-                        Text(serial)
-                            .textSelection(.enabled) // Ensure serial numbers are selectable
+                    if serialNumbers.isEmpty {
+                        Text("No serial numbers entered yet")
+                            .foregroundColor(.gray)
+                            .textSelection(.disabled) // Prevent selection for placeholder text
+                    } else {
+                        ForEach(serialNumbers, id: \.self) { serial in
+                            HStack {
+                                Text(serial)
+                                    .textSelection(.enabled) // Make text selectable
+                                    .padding(.trailing, 8)
+                                Spacer()
+                                Image(systemName: "trash") // Trash icon for removal
+                                    .foregroundColor(.red)
+                                    .onTapGesture {
+                                        removeFromSerialNumbers(serial)
+                                    }
+                            }
+                        }
                     }
                 }
 
@@ -41,10 +57,18 @@ struct MenuView: View {
                                     .onTapGesture {
                                         copyToClipboard(barcode)
                                     }
+                                    .padding(.trailing, 8) // Add some spacing
+                                Image(systemName: "plus.circle") // Add icon
+                                    .foregroundColor(.green)
+                                    .onTapGesture {
+                                        addToSerialNumbers(barcode)
+                                    }
                             }
                         }
                     }
                 }
+
+
 
                 // Reset buttons
                 Section {
@@ -72,6 +96,7 @@ struct MenuView: View {
         }
     }
 
+
     // Copy the barcode to the clipboard
     private func copyToClipboard(_ barcode: String) {
         UIPasteboard.general.string = barcode
@@ -84,5 +109,24 @@ struct MenuView: View {
 
     private func resetScannedBarcodes() {
         scannedBarcodes.removeAll() // Clear the scanned barcodes
+    }
+
+    // Function to add barcode to serial numbers
+    private func addToSerialNumbers(_ barcode: String) {
+        if !serialNumbers.contains(barcode) {
+            serialNumbers.append(barcode)
+            print("Added \(barcode) to serial numbers")
+        } else {
+            print("\(barcode) already exists in serial numbers")
+        }
+    }
+    // Function to remove a serial number
+    private func removeFromSerialNumbers(_ serial: String) {
+        if let index = serialNumbers.firstIndex(of: serial) {
+            serialNumbers.remove(at: index)
+            print("Removed \(serial) from serial numbers")
+        } else {
+            print("\(serial) not found in serial numbers")
+        }
     }
 }

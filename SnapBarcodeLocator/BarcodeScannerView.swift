@@ -102,7 +102,11 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
                 captureSession.addOutput(metadataOutput)
 
                 metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
-                metadataOutput.metadataObjectTypes = [.ean8, .ean13, .code128, .qr, .pdf417, .code39]
+                metadataOutput.metadataObjectTypes = [
+                    .ean8, .ean13, .code128, .qr,
+                    .pdf417, .code39, .code39Mod43, .code93,
+                    .aztec, .dataMatrix, .interleaved2of5, .itf14
+                ]
             }
 
             previewLayer = AVCaptureVideoPreviewLayer(session: captureSession!)
@@ -181,10 +185,21 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
             captureSession?.stopRunning()
 
             print("Pausing")
-            DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + duration) {
                 self.captureSession?.startRunning()
-                self.highlightView.frame = .zero // Clear highlight after the pause
+
+                // Since UI updates (like clearing the highlight frame) must happen on the main thread,
+                // we move this part back to the main queue.
+                DispatchQueue.main.async {
+                    self.highlightView.frame = .zero // Clear highlight after the pause
+                }
             }
+
+
+            // DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            //     self.captureSession?.startRunning()
+            //     self.highlightView.frame = .zero // Clear highlight after the pause
+            // }
         }
 
         private func triggerHapticFeedback() {
