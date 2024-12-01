@@ -50,11 +50,16 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
             print("Updated serial numbers: \(serialNumbers)")
         }
 
+
         override func viewDidLoad() {
             super.viewDidLoad()
             view.backgroundColor = .black
 
             captureSession = AVCaptureSession()
+
+            // Set high-resolution preset
+            captureSession?.sessionPreset = .hd4K3840x2160 // High resolution for small details
+            print("Capture session set to 4K resolution.")
 
             guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else {
                 print("Failed to access camera.")
@@ -66,6 +71,27 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
                 if let captureSession = captureSession, captureSession.canAddInput(videoInput) {
                     captureSession.addInput(videoInput)
                 }
+
+                // Configure dynamic zoom and macro focus
+                try videoCaptureDevice.lockForConfiguration()
+
+                let desiredZoomFactor: CGFloat = 1.2 // Adjust as needed
+
+                if desiredZoomFactor <= videoCaptureDevice.activeFormat.videoMaxZoomFactor {
+                    videoCaptureDevice.videoZoomFactor = desiredZoomFactor
+                    print("Zoom set to \(desiredZoomFactor)x.")
+                } else {
+                    print("Desired zoom factor \(desiredZoomFactor)x exceeds the maximum supported zoom factor: \(videoCaptureDevice.activeFormat.videoMaxZoomFactor).")
+                }
+
+                // Macro focus settings
+                if videoCaptureDevice.isSmoothAutoFocusSupported {
+                    videoCaptureDevice.isSmoothAutoFocusEnabled = true
+                    print("Smooth auto-focus enabled.")
+                }
+
+                videoCaptureDevice.unlockForConfiguration()
+
             } catch {
                 print("Error setting up video input: \(error.localizedDescription)")
                 return
@@ -76,7 +102,7 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
                 captureSession.addOutput(metadataOutput)
 
                 metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
-                metadataOutput.metadataObjectTypes = [.ean8, .ean13, .code128, .qr]
+                metadataOutput.metadataObjectTypes = [.ean8, .ean13, .code128, .qr, .pdf417, .code39]
             }
 
             previewLayer = AVCaptureVideoPreviewLayer(session: captureSession!)
@@ -93,6 +119,7 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
                 self.captureSession?.startRunning()
             }
         }
+
 
         func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
             guard let readableObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,

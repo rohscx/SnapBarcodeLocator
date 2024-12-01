@@ -34,7 +34,7 @@ struct ContentView: View {
                     keyboardHeight: $keyboardHeight
                 )
             }
-            .navigationTitle("SnapBarcode Locator")
+            .navigationTitle("")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: {
