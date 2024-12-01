@@ -8,28 +8,32 @@
 import SwiftUI
 
 struct ContentView: View {
-    @Binding var serialNumbers: [String] // Pass as a binding
+    @EnvironmentObject var appStateManager: AppStateManager
     @State private var inputText: String = "" // Input field text
     @State private var matchedCode: String?
     @State private var keyboardHeight: CGFloat = 0 // Track the keyboard height
     @FocusState private var isTextFieldFocused: Bool // Manage focus state for TextField
     @State private var isMenuOpen: Bool = false // Track menu visibility
+    @Binding var serialNumbers: [String] // Pass as a binding
     @State private var scannedBarcodes: [String] = [] // Log of all scanned barcodes
+
 
     var body: some View {
         NavigationView {
             VStack {
+                // Barcode Scanner Section
                 BarcodeScannerSection(
                     matchedCode: $matchedCode,
-                    scannedBarcodes: $scannedBarcodes,
-                    serialNumbers: $serialNumbers
+                    scannedBarcodes: $appStateManager.scannedBarcodes,
+                    serialNumbers: $appStateManager.serialNumbers
                 )
 
                 Spacer()
 
+                // Input Form Section
                 InputFormSection(
                     inputText: $inputText,
-                    serialNumbers: $serialNumbers,
+                    serialNumbers: $appStateManager.serialNumbers,
                     isTextFieldFocused: $isTextFieldFocused,
                     keyboardHeight: $keyboardHeight
                 )
@@ -46,7 +50,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $isMenuOpen) {
-                MenuView(serialNumbers: $serialNumbers, scannedBarcodes: $scannedBarcodes)
+                MenuView(serialNumbers: $appStateManager.serialNumbers, scannedBarcodes: $appStateManager.scannedBarcodes)
             }
             .background(Color.black.opacity(0.05)) // General background color
             .ignoresSafeArea(.keyboard, edges: .bottom)

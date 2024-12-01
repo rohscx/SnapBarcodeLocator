@@ -30,182 +30,235 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
         }
     }
 
-class BarcodeScannerUIViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
-    private var serialNumbers: [String] = []
-    var onScanned: ((String) -> Void)?
-    private var captureSession: AVCaptureSession?
-    private var previewLayer: AVCaptureVideoPreviewLayer?
-    private var highlightView: UIView = {
-        let view = UIView()
-        view.layer.borderColor = UIColor.green.cgColor
-        view.layer.borderWidth = 2
-        view.backgroundColor = UIColor.clear
-        return view
-    }()
+    class BarcodeScannerUIViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
+        private var serialNumbers: [String] = []
+        var onScanned: ((String) -> Void)?
+        private var captureSession: AVCaptureSession?
+        private var previewLayer: AVCaptureVideoPreviewLayer?
+        private var highlightView: UIView = {
+            let view = UIView()
+            view.layer.borderColor = UIColor.green.cgColor
+            view.layer.borderWidth = 2
+            view.backgroundColor = UIColor.clear
+            return view
+        }()
 
-    private var lastProcessedTime: TimeInterval = 0
-    private let cooldownPeriod: TimeInterval = 0.5 // 500ms cooldown
+        private var loadingLabel: UILabel! // Loading label for feedback
+        private var activityIndicator: UIActivityIndicatorView! // Activity indicator for feedback
+        private var visionReady = false // Tracks Vision initialization state
 
-    func updateSerialNumbers(_ serialNumbers: [String]) {
-        self.serialNumbers = serialNumbers
-        print("Updated serial numbers: \(serialNumbers)")
-    }
+        private var lastProcessedTime: TimeInterval = 0
+        private let cooldownPeriod: TimeInterval = 0.5 // 500ms cooldown
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .black
-
-        setupCaptureSession()
-    }
-
-    private func setupCaptureSession() {
-        captureSession = AVCaptureSession()
-        captureSession?.sessionPreset = .hd4K3840x2160 // High resolution for small details
-        print("Capture session set to 4K resolution.")
-
-        guard let videoDevice = AVCaptureDevice.default(for: .video) else {
-            print("Failed to access camera.")
-            return
-        }
-
-        do {
-            let videoInput = try AVCaptureDeviceInput(device: videoDevice)
-            if let captureSession = captureSession, captureSession.canAddInput(videoInput) {
-                captureSession.addInput(videoInput)
+        func updateSerialNumbers(_ newSerialNumbers: [String]) {
+            guard serialNumbers != newSerialNumbers else {
+                print("No changes to serial numbers; skipping update.")
+                return
             }
-
-            // Configure zoom and focus
-            try videoDevice.lockForConfiguration()
-            let desiredZoomFactor: CGFloat = 1.2
-            if desiredZoomFactor <= videoDevice.activeFormat.videoMaxZoomFactor {
-                videoDevice.videoZoomFactor = desiredZoomFactor
-                print("Zoom set to \(desiredZoomFactor)x.")
-            }
-            if videoDevice.isSmoothAutoFocusSupported {
-                videoDevice.isSmoothAutoFocusEnabled = true
-                print("Smooth auto-focus enabled.")
-            }
-            videoDevice.unlockForConfiguration()
-
-        } catch {
-            print("Error setting up video input: \(error.localizedDescription)")
-            return
+            serialNumbers = newSerialNumbers
+            print("Updated serial numbers: \(serialNumbers)")
         }
 
-        let videoOutput = AVCaptureVideoDataOutput()
-        videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "barcodeScannerQueue"))
-        if let captureSession = captureSession, captureSession.canAddOutput(videoOutput) {
-            captureSession.addOutput(videoOutput)
+        override func viewDidLoad() {
+            super.viewDidLoad()
+            view.backgroundColor = .black
+
+            // Setup camera session and feedback views
+            setupCaptureSession()
+            setupFeedbackView()
+
+            // Initialize Vision pipeline
+            initializeVision()
+
+            // Ensure feedback views are on top
+            view.bringSubviewToFront(loadingLabel)
+            view.bringSubviewToFront(activityIndicator)
         }
 
-        previewLayer = AVCaptureVideoPreviewLayer(session: captureSession!)
-        previewLayer?.frame = view.layer.bounds
-        previewLayer?.videoGravity = .resizeAspectFill
-        if let previewLayer = previewLayer {
-            view.layer.addSublayer(previewLayer)
-        }
+        private func setupCaptureSession() {
+            captureSession = AVCaptureSession()
+            captureSession?.sessionPreset = .hd4K3840x2160 // High resolution for small details
+            print("Capture session set to 4K resolution.")
 
-        view.addSubview(highlightView)
-        view.bringSubviewToFront(highlightView)
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            self.captureSession?.startRunning()
-        }
-    }
-
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-
-        let request = VNDetectBarcodesRequest { request, error in
-            if let error = error {
-                print("Error detecting barcodes: \(error.localizedDescription)")
+            guard let videoDevice = AVCaptureDevice.default(for: .video) else {
+                print("Failed to access camera.")
                 return
             }
 
-            guard let results = request.results as? [VNBarcodeObservation] else { return }
+            do {
+                let videoInput = try AVCaptureDeviceInput(device: videoDevice)
+                if let captureSession = captureSession, captureSession.canAddInput(videoInput) {
+                    captureSession.addInput(videoInput)
+                }
 
-            DispatchQueue.main.async {
-                for result in results {
-                    if let payload = result.payloadStringValue {
-                        self.handleDetectedBarcode(payload: payload, bounds: result.boundingBox)
-                    }
+                try videoDevice.lockForConfiguration()
+                let desiredZoomFactor: CGFloat = 1.2
+                if desiredZoomFactor <= videoDevice.activeFormat.videoMaxZoomFactor {
+                    videoDevice.videoZoomFactor = desiredZoomFactor
+                    print("Zoom set to \(desiredZoomFactor)x.")
+                }
+                if videoDevice.isSmoothAutoFocusSupported {
+                    videoDevice.isSmoothAutoFocusEnabled = true
+                    print("Smooth auto-focus enabled.")
+                }
+                videoDevice.unlockForConfiguration()
+
+            } catch {
+                print("Error setting up video input: \(error.localizedDescription)")
+                return
+            }
+
+            let videoOutput = AVCaptureVideoDataOutput()
+            videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "barcodeScannerQueue"))
+            if let captureSession = captureSession, captureSession.canAddOutput(videoOutput) {
+                captureSession.addOutput(videoOutput)
+            }
+
+            previewLayer = AVCaptureVideoPreviewLayer(session: captureSession!)
+            previewLayer?.frame = view.layer.bounds
+            previewLayer?.videoGravity = .resizeAspectFill
+            if let previewLayer = previewLayer {
+                view.layer.addSublayer(previewLayer)
+            }
+
+            view.addSubview(highlightView)
+            view.bringSubviewToFront(highlightView)
+
+            DispatchQueue.global(qos: .userInitiated).async {
+                self.captureSession?.startRunning()
+            }
+        }
+
+        private func initializeVision() {
+            DispatchQueue.global(qos: .background).async {
+                print("Initializing Vision pipeline...")
+                sleep(3) // Simulated delay for Vision pipeline setup
+                DispatchQueue.main.async {
+                    self.visionReady = true
+                    self.hideFeedbackView()
+                    print("Vision pipeline is ready!")
                 }
             }
         }
 
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
-        try? handler.perform([request])
-    }
+        private func setupFeedbackView() {
+            // Initialize feedback views
+            loadingLabel = UILabel()
+            loadingLabel.text = "Initializing Scanner..."
+            loadingLabel.textColor = .white
+            loadingLabel.textAlignment = .center
+            loadingLabel.translatesAutoresizingMaskIntoConstraints = false
 
-    private func handleDetectedBarcode(payload: String, bounds: CGRect) {
-        let currentTime = Date().timeIntervalSince1970
-        guard currentTime - lastProcessedTime > cooldownPeriod else {
-            return // Skip processing if within cooldown period
+            activityIndicator = UIActivityIndicatorView(style: .large)
+            activityIndicator.color = .white
+            activityIndicator.translatesAutoresizingMaskIntoConstraints = false
+            activityIndicator.startAnimating()
+
+            // Add feedback views to the main view
+            view.addSubview(loadingLabel)
+            view.addSubview(activityIndicator)
+
+            // Layout constraints for feedback views
+            NSLayoutConstraint.activate([
+                loadingLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                loadingLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -20),
+                activityIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                activityIndicator.topAnchor.constraint(equalTo: loadingLabel.bottomAnchor, constant: 10)
+            ])
         }
-        lastProcessedTime = currentTime
 
-        let normalizedValue = payload.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedSerials = serialNumbers.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-        let isMatched = normalizedSerials.contains(normalizedValue)
-
-        print("Checking if matched: \(normalizedValue) in \(normalizedSerials) -> \(isMatched)")
-
-        if isMatched {
-            print("Matched serial number: \(payload)")
-            highlightBarcode(bounds: bounds)
-            triggerHapticFeedback()
-        } else {
-            print("Scanned value: \(payload) did not match any serial numbers.")
+        private func hideFeedbackView() {
+            DispatchQueue.main.async {
+                print("Hiding feedback views.")
+                self.loadingLabel.removeFromSuperview()
+                self.activityIndicator.stopAnimating()
+                self.activityIndicator.removeFromSuperview()
+            }
         }
 
-        onScanned?(payload)
-    }
+        func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+            guard visionReady else {
+                print("Vision not ready. Skipping frame.")
+                return
+            }
 
-    private func highlightBarcode(bounds: CGRect) {
-        guard let previewLayer = previewLayer else { return }
+            guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
-        // Convert Vision's normalized bounding box to previewLayer coordinates
-        let convertedBounds = previewLayer.layerRectConverted(fromMetadataOutputRect: bounds)
-
-        DispatchQueue.main.async {
-            self.highlightView.frame = convertedBounds
-            self.view.bringSubviewToFront(self.highlightView)
-
-            // Add pulse animation to the highlight
-            UIView.animate(
-                withDuration: 0.2,
-                animations: {
-                    self.highlightView.transform = CGAffineTransform(scaleX: 1.2, y: 1.2)
-                },
-                completion: { _ in
-                    UIView.animate(
-                        withDuration: 0.2,
-                        animations: {
-                            self.highlightView.transform = .identity
-                        },
-                        completion: { _ in
-                            // Clear the highlight after the animation is done
-                            self.highlightView.frame = .zero
-                        }
-                    )
+            let request = VNDetectBarcodesRequest { request, error in
+                if let error = error {
+                    print("Error detecting barcodes: \(error.localizedDescription)")
+                    return
                 }
-            )
 
-            print("Updated highlight frame to: \(convertedBounds)")
+                guard let results = request.results as? [VNBarcodeObservation] else { return }
+
+                DispatchQueue.main.async {
+                    for result in results {
+                        if let payload = result.payloadStringValue {
+                            self.handleDetectedBarcode(payload: payload, bounds: result.boundingBox)
+                        }
+                    }
+                }
+            }
+
+            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
+            try? handler.perform([request])
+        }
+
+        private func handleDetectedBarcode(payload: String, bounds: CGRect) {
+            let currentTime = Date().timeIntervalSince1970
+            guard currentTime - lastProcessedTime > cooldownPeriod else {
+                return // Skip processing if within cooldown period
+            }
+            lastProcessedTime = currentTime
+
+            let normalizedValue = payload.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let normalizedSerials = serialNumbers.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            let isMatched = normalizedSerials.contains(normalizedValue)
+
+            print("Checking if matched: \(normalizedValue) in \(normalizedSerials) -> \(isMatched)")
+
+            if isMatched {
+                print("Matched serial number: \(payload)")
+                highlightBarcode(bounds: bounds)
+                triggerHapticFeedback()
+            } else {
+                print("Scanned value: \(payload) did not match any serial numbers.")
+            }
+
+            onScanned?(payload)
+        }
+
+        private func highlightBarcode(bounds: CGRect) {
+            guard let previewLayer = previewLayer else { return }
+
+            let convertedBounds = previewLayer.layerRectConverted(fromMetadataOutputRect: bounds)
+
+            DispatchQueue.main.async {
+                self.highlightView.frame = convertedBounds
+                self.view.bringSubviewToFront(self.highlightView)
+
+                UIView.animate(withDuration: 0.2, animations: {
+                    self.highlightView.alpha = 1
+                }) { _ in
+                    UIView.animate(withDuration: 0.2, animations: {
+                        self.highlightView.alpha = 0
+                    })
+                }
+            }
+        }
+
+        private func triggerHapticFeedback() {
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+            print("Haptics triggered.")
+        }
+
+        override func viewWillDisappear(_ animated: Bool) {
+            super.viewWillDisappear(animated)
+            captureSession?.stopRunning()
         }
     }
-
-    private func triggerHapticFeedback() {
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
-        print("Haptics triggered.")
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        captureSession?.stopRunning()
-    }
-}
 
     class Coordinator: NSObject {
         var onScanned: (String) -> Void

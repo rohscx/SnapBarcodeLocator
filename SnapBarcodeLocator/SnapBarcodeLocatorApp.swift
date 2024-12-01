@@ -25,6 +25,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if appStateManager.cameraPermissionGranted {
+                // Pass serialNumbers as a binding
                 ContentView(serialNumbers: $appStateManager.serialNumbers)
             } else {
                 PermissionDeniedView()
