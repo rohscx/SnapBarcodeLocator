@@ -89,38 +89,55 @@ struct BarcodeScannerSection: View {
     @Binding var visionReady: Bool
 
     var body: some View {
-        ZStack {
-            BarcodeScannerView(
-                serialNumbers: $serialNumbers,
-                onScanned: { scannedValue in
-                    // Add all scanned barcodes to the list
-                    if !scannedBarcodes.contains(scannedValue) {
-                        scannedBarcodes.append(scannedValue)
-                        print("Scanned barcode added: \(scannedValue)")
-                    } else {
-                        print("Duplicate barcode ignored: \(scannedValue)")
-                    }
+        VStack {
+            ZStack {
+                BarcodeScannerView(
+                    serialNumbers: $serialNumbers,
+                    onScanned: { scannedValue in
+                        // Add all scanned barcodes to the list
+                        if !scannedBarcodes.contains(scannedValue) {
+                            scannedBarcodes.append(scannedValue)
+                            print("Scanned barcode added: \(scannedValue)")
+                        } else {
+                            print("Duplicate barcode ignored: \(scannedValue)")
+                        }
 
-                    // Check if the scanned barcode matches a serial number
-                    if serialNumbers.contains(scannedValue) {
-                        matchedCode = scannedValue
-                        print("Matched serial number: \(scannedValue)")
-                    } else {
-                        print("Scanned value: \(scannedValue) did not match any serial numbers.")
+                        // Check if the scanned barcode matches a serial number
+                        if serialNumbers.contains(scannedValue) {
+                            matchedCode = scannedValue
+                            print("Matched serial number: \(scannedValue)")
+                        } else {
+                            print("Scanned value: \(scannedValue) did not match any serial numbers.")
+                        }
+                    },
+                    onVisionReady: { isReady in
+                        print("Vision readiness updated: \(isReady)")
+                        self.visionReady = isReady
                     }
-                },
-                onVisionReady: { isReady in
-                    print("Vision readiness updated: \(isReady)")
-                    self.visionReady = isReady
-                }
-            )
-            .frame(height: UIScreen.main.bounds.height * 0.5)
-            .background(Color.black.opacity(0.7))
-            .cornerRadius(20)
-            .padding()
+                )
+                .frame(height: UIScreen.main.bounds.height * 0.5)
+                .background(Color.black.opacity(0.7))
+                .cornerRadius(20)
+                .padding()
+            }
+
+            // Display matched code or prompt
+            if let code = matchedCode {
+                Text("\(code)")
+                    .font(.title)
+                    .padding()
+                    .foregroundColor(.green)
+            } else {
+                Text("Scan a barcode to match!")
+                    .font(.headline)
+                    .padding()
+                    .foregroundColor(.gray)
+            }
         }
+        .padding()
     }
 }
+
 
 struct InputFormSection: View {
     @Binding var inputText: String
