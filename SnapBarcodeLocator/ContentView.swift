@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AVFoundation
 
 struct ContentView: View {
     @EnvironmentObject var appStateManager: AppStateManager
@@ -87,6 +88,7 @@ struct BarcodeScannerSection: View {
     @Binding var scannedBarcodes: [String]
     @Binding var serialNumbers: [String]
     @Binding var visionReady: Bool
+    @State private var isTorchOn: Bool = false // Track flashlight
 
     var body: some View {
         VStack {
@@ -119,13 +121,32 @@ struct BarcodeScannerSection: View {
                 .background(Color.black.opacity(0.7))
                 .cornerRadius(20)
                 .padding()
+
+                // Flashlight Toggle Button in the Top-Right Corner
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            toggleTorch()
+                        }) {
+                            Image(systemName: isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill")
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Color.black.opacity(0.7))
+                                .clipShape(Circle())
+                                .shadow(radius: 10)
+                        }
+                        .padding()
+                    }
+                    Spacer()
+                }
             }
 
             // Display matched code or prompt
             if let code = matchedCode {
                 Text("\(code)")
                     .font(.title)
-                    .padding()
+                    // .padding()
                     .foregroundColor(.green)
             } else {
                 Text("Scan a barcode to match!")
@@ -135,6 +156,22 @@ struct BarcodeScannerSection: View {
             }
         }
         .padding()
+    }
+
+    private func toggleTorch() {
+        guard let device = AVCaptureDevice.default(for: .video), device.hasTorch else {
+            print("Torch is not available on this device.")
+            return
+        }
+
+        do {
+            try device.lockForConfiguration()
+            device.torchMode = isTorchOn ? .off : .on
+            isTorchOn.toggle()
+            device.unlockForConfiguration()
+        } catch {
+            print("Error toggling the torch: \(error.localizedDescription)")
+        }
     }
 }
 
