@@ -13,8 +13,11 @@ func exportCSV(scannedBarcodes: [String]) {
     let fileURL = documentsDirectory.appendingPathComponent("ScannedBarcodes.csv")
 
     do {
-        // Write barcodes to the file
-        let csvContent = scannedBarcodes.joined(separator: "\n")
+        // Prepare CSV header and rows
+        var csvContent = "Barcode\n" // Header
+        csvContent += scannedBarcodes.map { "\"\($0)\"" }.joined(separator: "\n") // Add each barcode in a new row, with values wrapped in quotes for safety.
+
+        // Write the content to the file
         try csvContent.write(to: fileURL, atomically: true, encoding: .utf8)
         print("CSV exported to: \(fileURL)")
 
