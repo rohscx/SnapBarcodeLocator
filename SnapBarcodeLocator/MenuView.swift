@@ -62,6 +62,12 @@ struct MenuView: View {
                                     .onTapGesture {
                                         addToSerialNumbers(barcode)
                                     }
+                                    .padding(.trailing, 8) // Add some spacing
+                                Image(systemName: "trash") // Trash icon for removal
+                                    .foregroundColor(.red)
+                                    .onTapGesture {
+                                        removeScannedBarcode(barcode)
+                                    }
                             }
                         }
                     }
@@ -136,30 +142,13 @@ struct MenuView: View {
         }
     }
 
-    // Function to export barcodes to CSV
-    // private func exportBarcodesToCSV() {
-    //     let csvString = scannedBarcodes.joined(separator: "\n")
-    //     let fileName = "ScannedBarcodes.csv"
-
-    //     // Write to a temporary directory
-    //     if let filePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent(fileName) {
-    //         do {
-    //             try csvString.write(to: filePath, atomically: true, encoding: .utf8)
-    //             print("CSV exported to: \(filePath)")
-
-    //             // Share the file
-    //             let activityViewController = UIActivityViewController(activityItems: [filePath], applicationActivities: nil)
-
-    //             // Use UIWindowScene to fetch the appropriate window
-    //             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-    //             let rootViewController = windowScene.windows.first?.rootViewController {
-    //                 rootViewController.present(activityViewController, animated: true, completion: nil)
-    //             } else {
-    //                 print("Failed to get root view controller for presenting the activity view controller.")
-    //             }
-    //         } catch {
-    //             print("Failed to export CSV: \(error.localizedDescription)")
-    //         }
-    //     }
-    // }
+    // Function to remove a serial number
+    private func removeScannedBarcode(_ barcode: String) {
+        if let index = scannedBarcodes.firstIndex(of: barcode) {
+            scannedBarcodes.remove(at: index)
+            print("Removed scanned barcode: \(barcode)")
+        } else {
+            print("\(barcode) not found in scanned barcodes")
+        }
+    }
 }
