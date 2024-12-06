@@ -15,7 +15,6 @@ struct MenuView: View {
     var body: some View {
         NavigationView {
             List {
-
                 // Section for serial numbers
                 Section(header: Text("Entered Serial Numbers")) {
                     if serialNumbers.isEmpty {
@@ -68,8 +67,6 @@ struct MenuView: View {
                     }
                 }
 
-
-
                 // Reset buttons
                 Section {
                     Button(role: .destructive, action: {
@@ -84,6 +81,13 @@ struct MenuView: View {
                         Text("Reset Scanned Barcodes")
                     }
                 }
+
+                // Export Barcodes
+                Section {
+                    Button("Export Scanned Barcodes") {
+                        exportCSV(scannedBarcodes: scannedBarcodes)
+                    }
+                }
             }
             .navigationTitle("Menu")
             .toolbar {
@@ -96,6 +100,7 @@ struct MenuView: View {
         }
     }
 
+    // MARK: - Helper Functions
 
     // Copy the barcode to the clipboard
     private func copyToClipboard(_ barcode: String) {
@@ -120,6 +125,7 @@ struct MenuView: View {
             print("\(barcode) already exists in serial numbers")
         }
     }
+
     // Function to remove a serial number
     private func removeFromSerialNumbers(_ serial: String) {
         if let index = serialNumbers.firstIndex(of: serial) {
@@ -129,4 +135,31 @@ struct MenuView: View {
             print("\(serial) not found in serial numbers")
         }
     }
+
+    // Function to export barcodes to CSV
+    // private func exportBarcodesToCSV() {
+    //     let csvString = scannedBarcodes.joined(separator: "\n")
+    //     let fileName = "ScannedBarcodes.csv"
+
+    //     // Write to a temporary directory
+    //     if let filePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent(fileName) {
+    //         do {
+    //             try csvString.write(to: filePath, atomically: true, encoding: .utf8)
+    //             print("CSV exported to: \(filePath)")
+
+    //             // Share the file
+    //             let activityViewController = UIActivityViewController(activityItems: [filePath], applicationActivities: nil)
+
+    //             // Use UIWindowScene to fetch the appropriate window
+    //             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+    //             let rootViewController = windowScene.windows.first?.rootViewController {
+    //                 rootViewController.present(activityViewController, animated: true, completion: nil)
+    //             } else {
+    //                 print("Failed to get root view controller for presenting the activity view controller.")
+    //             }
+    //         } catch {
+    //             print("Failed to export CSV: \(error.localizedDescription)")
+    //         }
+    //     }
+    // }
 }
