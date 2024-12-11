@@ -53,7 +53,7 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
         private var visionReady = false // Tracks Vision initialization state
 
         private var lastProcessedTime: TimeInterval = 0
-        private let cooldownPeriod: TimeInterval = 0.5 // 500ms cooldown
+        private let cooldownPeriod: TimeInterval = 0.2 // 500ms cooldown
 
         func updateSerialNumbers(_ newSerialNumbers: [String]) {
             guard serialNumbers != newSerialNumbers else {
